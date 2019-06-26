@@ -142,7 +142,8 @@ class CarInterface(object):
       ret.steerRatio = 16.17 # 13.7
       tire_stiffness_factor = 1.3
       ret.mass = 3400 * CV.LB_TO_KG + std_cargo #mean between normal and hybrid
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3], [0.1]]
+      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0., 20.], [0., 20.]]
+      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3, 0.5], [0.1, 0.16]]
       ret.lateralTuning.pid.kf = 0.00007
 
     elif candidate in [CAR.HIGHLANDER, CAR.HIGHLANDERH]:
