@@ -144,7 +144,7 @@ class CarInterface(object):
       ret.mass = 3400 * CV.LB_TO_KG + std_cargo #mean between normal and hybrid
       ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0., 20.], [0., 20.]]
       ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3, 0.5], [0.1, 0.16]]
-      ret.lateralTuning.pid.kf = 0.00007
+      ret.lateralTuning.pid.kf = 0.00006
 
     elif candidate in [CAR.HIGHLANDER, CAR.HIGHLANDERH]:
       stop_and_go = True
