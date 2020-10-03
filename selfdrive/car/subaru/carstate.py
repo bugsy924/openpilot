@@ -203,4 +203,6 @@ class CarState(CarStateBase):
 
     if self.car_fingerprint in [CAR.OUTBACK, CAR.LEGACY]:
       self.v_cruise_pcm = cp_cam.vl["ES_DashStatus"]["Cruise_Set_Speed"]
+      if cp.vl["Dash_State"]['Units'] == 1:
+        self.v_cruise_pcm *= CV.MPH_TO_KPH
       self.ready = not cp_cam.vl["ES_DashStatus"]["Not_Ready_Startup"]
