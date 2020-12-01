@@ -30,7 +30,7 @@ androidLog: [8020, true, 0.]
 carState: [8021, true, 100., 10]
 # 8022 is reserved for sshd
 carControl: [8023, true, 100., 10]
-plan: [8024, true, 20.]
+plan: [8024, true, 20., 2]
 liveLocation: [8025, true, 0., 1]
 gpsLocation: [8026, true, 1., 1]
 ethernetData: [8027, true, 0.]
@@ -57,25 +57,29 @@ orbslamCorrection: [8050, true, 0.]
 liveLocationCorrected: [8051, true, 0.]
 orbObservation: [8052, true, 0.]
 applanixLocation: [8053, true, 0.]
-liveLocationKalman: [8054, true, 0., 1]
+liveLocationKalman: [8054, true, 20., 2]
 uiNavigationEvent: [8055, true, 0.]
 orbOdometry: [8057, true, 0.]
 orbFeatures: [8058, false, 0.]
 orbKeyFrame: [8059, true, 0.]
 uiLayoutState: [8060, true, 0.]
-frontEncodeIdx: [8061, true, 5.]
+frontEncodeIdx: [8061, true, 5.] # should be 20fps on tici
 orbFeaturesSummary: [8062, true, 0.]
 driverState: [8063, true, 5., 1]
-liveParameters: [8064, true, 10.]
+liveParameters: [8064, true, 20., 2]
 liveMapData: [8065, true, 0.]
 cameraOdometry: [8066, true, 20., 5]
-pathPlan: [8067, true, 20.]
+pathPlan: [8067, true, 20., 2]
 kalmanOdometry: [8068, true, 0.]
 thumbnail: [8069, true, 0.2, 1]
 carEvents: [8070, true, 1., 1]
 carParams: [8071, true, 0.02, 1]
 frontFrame: [8072, true, 10.]
 dMonitoringState: [8073, true, 5., 1]
+offroadLayout: [8074, false, 0.]
+wideEncodeIdx: [8075, true, 20.]
+wideFrame: [8076, true, 20.]
+modelV2: [8077, true, 20., 20]
 
 testModel: [8040, false, 0.]
 testLiveLocation: [8045, false, 0.]
@@ -103,18 +107,30 @@ testJoystick: [8056, false, 0.]
 # gpsd -- publishes EON's gps
 #   publishes: gpsNMEA
 
-# visiond -- talks to the cameras, runs the model, saves the videos
-#   publishes:  frame, model, driverMonitoring, cameraOdometry, thumbnail
+# camerad -- publishes camera frames
+#   publishes: frame, frontFrame, thumbnail
+#   subscribes: driverState
+
+# dmonitoringmodeld -- runs face detection on camera frames
+#   publishes: driverState
 
 # **** stateful data transformers ****
+
+# modeld -- runs & publishes the model
+#   publishes: model, cameraOdometry
+#   subscribes: liveCalibration, pathPlan
 
 # plannerd -- decides where to drive the car
 #   subscribes: carState, model, radarState, controlsState, liveParameters
 #   publishes:  plan, pathPlan, liveMpc, liveLongitudinalMpc
 
 # controlsd -- drives the car by sending CAN messages to panda
-#   subscribes: can, thermal, health, plan, pathPlan, driverMonitoring, liveCalibration
+#   subscribes: can, thermal, health, plan, pathPlan, dMonitoringState, liveCalibration, model
 #   publishes:  carState, carControl, sendcan, controlsState, carEvents, carParams
+
+# dmonitoringd -- processes driver monitoring data and publishes driver awareness
+#   subscribes: driverState, liveCalibration, carState, model, gpsLocation
+#   publishes: dMonitoringState
 
 # radard -- processes the radar and vision data
 #   subscribes: can, controlsState, model, liveParameters

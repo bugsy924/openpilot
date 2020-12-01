@@ -8,7 +8,7 @@ class Spinner():
     try:
       self.spinner_proc = subprocess.Popen(["./spinner"],
                                            stdin=subprocess.PIPE,
-                                           cwd=os.path.join(BASEDIR, "selfdrive", "ui", "spinner"),
+                                           cwd=os.path.join(BASEDIR, "selfdrive", "ui"),
                                            close_fds=True)
     except OSError:
       self.spinner_proc = None
@@ -36,22 +36,8 @@ class Spinner():
   def __del__(self):
     self.close()
 
-  def __exit__(self, type, value, traceback):
+  def __exit__(self, exc_type, exc_value, traceback):
     self.close()
-
-
-class FakeSpinner():
-  def __init__(self):
-    pass
-
-  def __enter__(self):
-    return self
-
-  def update(self, _):
-    pass
-
-  def __exit__(self, type, value, traceback):
-    pass
 
 
 if __name__ == "__main__":

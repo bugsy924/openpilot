@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <cassert>
+#include <sys/resource.h>
 
 #include "common/visionbuf.h"
 #include "common/visionipc.h"
@@ -23,11 +24,16 @@ static void set_do_exit(int sig) {
 
 int main(int argc, char **argv) {
   int err;
-  set_realtime_priority(1);
+  setpriority(PRIO_PROCESS, 0, -15);
 
-  // messaging
-  Context *msg_context = Context::create();
-  PubSocket *dmonitoring_sock = PubSocket::create(msg_context, "driverState");
+#ifdef QCOM2
+  set_core_affinity(5);
+#endif
+
+  signal(SIGINT, (sighandler_t)set_do_exit);
+  signal(SIGTERM, (sighandler_t)set_do_exit);
+
+  PubMaster pm({"driverState"});
 
   // init the models
   DMonitoringModelState dmonitoringmodel;
@@ -54,26 +60,25 @@ int main(int argc, char **argv) {
         printf("visionstream get failed\n");
         break;
       }
-      //printf("frame_id: %d %dx%d\n", extra.frame_id, buf_info.width, buf_info.height);
 
       double t1 = millis_since_boot();
-
       DMonitoringResult res = dmonitoring_eval_frame(&dmonitoringmodel, buf->addr, buf_info.width, buf_info.height);
-
       double t2 = millis_since_boot();
 
       // send dm packet
-      dmonitoring_publish(dmonitoring_sock, extra.frame_id, res);
+      dmonitoring_publish(pm, extra.frame_id, res, (t2-t1)/1000.0);
 
       LOGD("dmonitoring process: %.2fms, from last %.2fms", t2-t1, t1-last);
       last = t1;
+#ifdef QCOM2
+      // this makes it run at about 2.7Hz on tici CPU to deal with modeld lags
+      // TODO: DSP needs to be freed (again)
+      usleep(250000);
+#endif
     }
-
+    visionstream_destroy(&stream);
   }
 
-  visionstream_destroy(&stream);
-
-  delete dmonitoring_sock;
   dmonitoring_free(&dmonitoringmodel);
 
   return 0;

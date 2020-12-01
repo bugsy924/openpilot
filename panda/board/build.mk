@@ -13,9 +13,10 @@ else
   DFU_UTIL = "tools/dfu-util-aarch64"
 endif
 
-CC = arm-none-eabi-gcc
-OBJCOPY = arm-none-eabi-objcopy
-OBJDUMP = arm-none-eabi-objdump
+#COMPILER_PATH = /home/batman/Downloads/gcc-arm-none-eabi-9-2020-q2-update/bin/
+CC = $(COMPILER_PATH)arm-none-eabi-gcc
+OBJCOPY = $(COMPILER_PATH)arm-none-eabi-objcopy
+OBJDUMP = $(COMPILER_PATH)arm-none-eabi-objdump
 
 ifeq ($(RELEASE),1)
   CERT = ../../pandaextra/certs/release
@@ -42,7 +43,7 @@ bin: obj/$(PROJ_NAME).bin
 
 # this flashes everything
 recover: obj/bootstub.$(PROJ_NAME).bin obj/$(PROJ_NAME).bin
-	-PYTHONPATH=../ python3 -c "from python import Panda; Panda().reset(enter_bootloader=True)"
+	-PYTHONPATH=../ python3 -c "from python import Panda; Panda().reset(enter_bootstub=True); Panda().reset(enter_bootloader=True)"
 	sleep 1.0
 	$(DFU_UTIL) -d 0483:df11 -a 0 -s 0x08004000 -D obj/$(PROJ_NAME).bin
 	$(DFU_UTIL) -d 0483:df11 -a 0 -s 0x08000000:leave -D obj/bootstub.$(PROJ_NAME).bin

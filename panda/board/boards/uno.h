@@ -4,8 +4,8 @@
 #define BOOTKICK_TIME 3U
 uint8_t bootkick_timer = 0U;
 
-void uno_enable_can_transciever(uint8_t transciever, bool enabled) {
-  switch (transciever){
+void uno_enable_can_transceiver(uint8_t transceiver, bool enabled) {
+  switch (transceiver){
     case 1U:
       set_gpio_output(GPIOC, 1, !enabled);
       break;
@@ -19,14 +19,19 @@ void uno_enable_can_transciever(uint8_t transciever, bool enabled) {
       set_gpio_output(GPIOB, 10, !enabled);
       break;
     default:
-      puts("Invalid CAN transciever ("); puth(transciever); puts("): enabling failed\n");
+      puts("Invalid CAN transceiver ("); puth(transceiver); puts("): enabling failed\n");
       break;
   }
 }
 
-void uno_enable_can_transcievers(bool enabled) {
+void uno_enable_can_transceivers(bool enabled) {
   for(uint8_t i=1U; i<=4U; i++){
-    uno_enable_can_transciever(i, enabled);
+    // Leave main CAN always on for CAN-based ignition detection
+    if((car_harness_status == HARNESS_STATUS_FLIPPED) ? (i == 3U) : (i == 1U)){
+      uno_enable_can_transceiver(i, true);
+    } else {
+      uno_enable_can_transceiver(i, enabled);
+    }
   }
 }
 
@@ -67,11 +72,9 @@ void uno_set_usb_power_mode(uint8_t mode) {
   bool valid = false;
   switch (mode) {
     case USB_POWER_CLIENT:
-      uno_set_phone_power(false);
       valid = true;
       break;
     case USB_POWER_CDP:
-      uno_set_phone_power(true);
       uno_bootkick();
       valid = true;
       break;
@@ -84,21 +87,21 @@ void uno_set_usb_power_mode(uint8_t mode) {
   }
 }
 
-void uno_set_esp_gps_mode(uint8_t mode) {
+void uno_set_gps_mode(uint8_t mode) {
   switch (mode) {
-    case ESP_GPS_DISABLED:
+    case GPS_DISABLED:
       // GPS OFF
       set_gpio_output(GPIOB, 1, 0);
       set_gpio_output(GPIOC, 5, 0);
       uno_set_gps_load_switch(false);
       break;
-    case ESP_GPS_ENABLED:
+    case GPS_ENABLED:
       // GPS ON
       set_gpio_output(GPIOB, 1, 1);
       set_gpio_output(GPIOC, 5, 1);
       uno_set_gps_load_switch(true);
       break;
-    case ESP_GPS_BOOTMODE:
+    case GPS_BOOTMODE:
       set_gpio_output(GPIOB, 1, 1);
       set_gpio_output(GPIOC, 5, 0);
       uno_set_gps_load_switch(true);
@@ -170,6 +173,14 @@ uint32_t uno_read_current(void){
   return 0U;
 }
 
+void uno_set_clock_source_mode(uint8_t mode){
+  UNUSED(mode);
+}
+
+void uno_set_siren(bool enabled){
+  UNUSED(enabled);
+}
+
 void uno_init(void) {
   common_init_gpio();
 
@@ -183,7 +194,7 @@ void uno_init(void) {
   set_gpio_mode(GPIOC, 3, MODE_ANALOG);
 
   // Set default state of GPS
-  current_board->set_esp_gps_mode(ESP_GPS_ENABLED);
+  current_board->set_gps_mode(GPS_ENABLED);
 
   // C10: OBD_SBU1_RELAY (harness relay driving output)
   // C11: OBD_SBU2_RELAY (harness relay driving output)
@@ -218,8 +229,8 @@ void uno_init(void) {
   // Initialize RTC
   rtc_init();
 
-  // Enable CAN transcievers
-  uno_enable_can_transcievers(true);
+  // Enable CAN transceivers
+  uno_enable_can_transceivers(true);
 
   // Disable LEDs
   uno_set_led(LED_RED, false);
@@ -266,16 +277,18 @@ const board board_uno = {
   .board_type = "Uno",
   .harness_config = &uno_harness_config,
   .init = uno_init,
-  .enable_can_transciever = uno_enable_can_transciever,
-  .enable_can_transcievers = uno_enable_can_transcievers,
+  .enable_can_transceiver = uno_enable_can_transceiver,
+  .enable_can_transceivers = uno_enable_can_transceivers,
   .set_led = uno_set_led,
   .set_usb_power_mode = uno_set_usb_power_mode,
-  .set_esp_gps_mode = uno_set_esp_gps_mode,
+  .set_gps_mode = uno_set_gps_mode,
   .set_can_mode = uno_set_can_mode,
   .usb_power_mode_tick = uno_usb_power_mode_tick,
   .check_ignition = uno_check_ignition,
   .read_current = uno_read_current,
   .set_fan_power = uno_set_fan_power,
   .set_ir_power = uno_set_ir_power,
-  .set_phone_power = uno_set_phone_power
+  .set_phone_power = uno_set_phone_power,
+  .set_clock_source_mode = uno_set_clock_source_mode,
+  .set_siren = uno_set_siren
 };

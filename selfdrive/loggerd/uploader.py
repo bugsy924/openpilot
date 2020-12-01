@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
-import os
-import re
-import time
-import json
-import random
 import ctypes
 import inspect
+import json
+import os
+import random
 import requests
-import traceback
 import threading
-import subprocess
+import time
+import traceback
 
-from selfdrive.swaglog import cloudlog
-from selfdrive.loggerd.config import ROOT
-
-from common import android
-from common.params import Params
+from cereal import log
+from common.hardware import HARDWARE
 from common.api import Api
+from common.params import Params
+from selfdrive.loggerd.xattr_cache import getxattr, setxattr
+from selfdrive.loggerd.config import ROOT
+from selfdrive.swaglog import cloudlog
+
+NetworkType = log.ThermalData.NetworkType
+UPLOAD_ATTR_NAME = 'user.upload'
+UPLOAD_ATTR_VALUE = b'1'
 
 fake_upload = os.getenv("FAKEUPLOAD") is not None
 
+
 def raise_on_thread(t, exctype):
+  '''Raises an exception in the threads with id tid'''
   for ctid, tobj in threading._active.items():
     if tobj is t:
       tid = ctid
@@ -28,7 +33,6 @@ def raise_on_thread(t, exctype):
   else:
     raise Exception("Could not find thread")
 
-  '''Raises an exception in the threads with id tid'''
   if not inspect.isclass(exctype):
     raise TypeError("Only types can be raised (not instances)")
 
@@ -65,29 +69,7 @@ def clear_locks(root):
       cloudlog.exception("clear_locks failed")
 
 def is_on_wifi():
-  # ConnectivityManager.getActiveNetworkInfo()
-  try:
-    # TODO: figure out why the android service call sometimes dies with SIGUSR2 (signal from MSGQ)
-    result = android.parse_service_call_string(android.service_call(["connectivity", "2"]))
-    if result is None:
-      return True
-    return 'WIFI' in result
-  except Exception:
-    cloudlog.exception("is_on_wifi failed")
-    return False
-
-def is_on_hotspot():
-  try:
-    result = subprocess.check_output(["ifconfig", "wlan0"], stderr=subprocess.STDOUT, encoding='utf8')
-    result = re.findall(r"inet addr:((\d+\.){3}\d+)", result)[0][0]
-
-    is_android = result.startswith('192.168.43.')
-    is_ios = result.startswith('172.20.10.')
-    is_entune = result.startswith('10.0.2.')
-
-    return (is_android or is_ios or is_entune)
-  except:
-    return False
+  return HARDWARE.get_network_type() == NetworkType.wifi
 
 class Uploader():
   def __init__(self, dongle_id, root):
@@ -101,17 +83,7 @@ class Uploader():
     self.last_exc = None
 
     self.immediate_priority = {"qlog.bz2": 0, "qcamera.ts": 1}
-    self.high_priority = {"rlog.bz2": 0, "fcamera.hevc": 1, "dcamera.hevc": 2}
-
-  def clean_dirs(self):
-    try:
-      for logname in os.listdir(self.root):
-        path = os.path.join(self.root, logname)
-        # remove empty directories
-        if not os.listdir(path):
-          os.rmdir(path)
-    except OSError:
-      cloudlog.exception("clean_dirs failed")
+    self.high_priority = {"rlog.bz2": 0, "fcamera.hevc": 1, "dcamera.hevc": 2, "ecamera.hevc": 3}
 
   def get_upload_sort(self, name):
     if name in self.immediate_priority:
@@ -135,11 +107,19 @@ class Uploader():
       for name in sorted(names, key=self.get_upload_sort):
         key = os.path.join(logname, name)
         fn = os.path.join(path, name)
-
+        # skip files already uploaded
+        try:
+          is_uploaded = getxattr(fn, UPLOAD_ATTR_NAME)
+        except OSError:
+          cloudlog.event("uploader_getxattr_failed", exc=self.last_exc, key=key, fn=fn)
+          is_uploaded = True  # deleter could have deleted
+        if is_uploaded:
+          continue
         yield (name, key, fn)
 
   def next_file_to_upload(self, with_raw):
     upload_files = list(self.gen_upload_files())
+
     # try to upload qlog files first
     for name, key, fn in upload_files:
       if name in self.immediate_priority:
@@ -161,6 +141,10 @@ class Uploader():
   def do_upload(self, key, fn):
     try:
       url_resp = self.api.get("v1.3/"+self.dongle_id+"/upload_url/", timeout=10, path=key, access_token=self.api.get_token())
+      if url_resp.status_code == 412:
+        self.last_resp = url_resp
+        return
+
       url_resp_json = json.loads(url_resp.text)
       url = url_resp_json['url']
       headers = url_resp_json['headers']
@@ -168,9 +152,11 @@ class Uploader():
 
       if fake_upload:
         cloudlog.info("*** WARNING, THIS IS A FAKE UPLOAD TO %s ***" % url)
+
         class FakeResponse():
           def __init__(self):
             self.status_code = 200
+
         self.last_resp = FakeResponse()
       else:
         with open(fn, "rb") as f:
@@ -202,27 +188,26 @@ class Uploader():
     cloudlog.info("checking %r with size %r", key, sz)
 
     if sz == 0:
-      # can't upload files of 0 size
-      os.unlink(fn) # delete the file
+      try:
+        # tag files of 0 size as uploaded
+        setxattr(fn, UPLOAD_ATTR_NAME, UPLOAD_ATTR_VALUE)
+      except OSError:
+        cloudlog.event("uploader_setxattr_failed", exc=self.last_exc, key=key, fn=fn, sz=sz)
       success = True
     else:
       cloudlog.info("uploading %r", fn)
       stat = self.normal_upload(key, fn)
-      if stat is not None and stat.status_code in (200, 201):
-        cloudlog.event("upload_success", key=key, fn=fn, sz=sz)
-
-        # delete the file
+      if stat is not None and stat.status_code in (200, 201, 412):
+        cloudlog.event("upload_success" if stat.status_code != 412 else "upload_ignored", key=key, fn=fn, sz=sz)
         try:
-          os.unlink(fn)
+          # tag file as uploaded
+          setxattr(fn, UPLOAD_ATTR_NAME, UPLOAD_ATTR_VALUE)
         except OSError:
-          cloudlog.event("delete_failed", stat=stat, exc=self.last_exc, key=key, fn=fn, sz=sz)
-
+          cloudlog.event("uploader_setxattr_failed", exc=self.last_exc, key=key, fn=fn, sz=sz)
         success = True
       else:
         cloudlog.event("upload_failed", stat=stat, exc=self.last_exc, key=key, fn=fn, sz=sz)
         success = False
-
-    self.clean_dirs()
 
     return success
 
@@ -239,23 +224,23 @@ def uploader_fn(exit_event):
   uploader = Uploader(dongle_id, ROOT)
 
   backoff = 0.1
-  while True:
-    allow_raw_upload = (params.get("IsUploadRawEnabled") != b"0")
-    on_hotspot = is_on_hotspot()
-    on_wifi = is_on_wifi()
-    should_upload = on_wifi and not on_hotspot
+  counter = 0
+  on_wifi = False
+  while not exit_event.is_set():
+    offroad = params.get("IsOffroad") == b'1'
+    allow_raw_upload = (params.get("IsUploadRawEnabled") != b"0") and offroad
+    if offroad and counter % 12 == 0:
+      on_wifi = is_on_wifi()
+    counter += 1
 
-    if exit_event.is_set():
-      return
-
-    d = uploader.next_file_to_upload(with_raw=allow_raw_upload and should_upload)
-    if d is None:
-      time.sleep(5)
+    d = uploader.next_file_to_upload(with_raw=allow_raw_upload and on_wifi and offroad)
+    if d is None:  # Nothing to upload
+      time.sleep(60 if offroad else 5)
       continue
 
     key, fn = d
 
-    cloudlog.event("uploader_netcheck", is_on_hotspot=on_hotspot, is_on_wifi=on_wifi)
+    cloudlog.event("uploader_netcheck", is_on_wifi=on_wifi)
     cloudlog.info("to upload %r", d)
     success = uploader.upload(key, fn)
     if success:
@@ -268,6 +253,7 @@ def uploader_fn(exit_event):
 
 def main():
   uploader_fn(threading.Event())
+
 
 if __name__ == "__main__":
   main()

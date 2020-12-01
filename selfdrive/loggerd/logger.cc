@@ -12,22 +12,17 @@
 
 #include <pthread.h>
 #include <bzlib.h>
+#include "messaging.hpp"
 
 #include "common/swaglog.h"
 
 #include "logger.h"
 
-#include <capnp/serialize.h>
-#include "cereal/gen/cpp/log.capnp.h"
-
 static void log_sentinel(LoggerState *s, cereal::Sentinel::SentinelType type) {
-  capnp::MallocMessageBuilder msg;
-  auto event = msg.initRoot<cereal::Event>();
-  event.setLogMonoTime(nanos_since_boot());
-  auto sen = event.initSentinel();
+  MessageBuilder msg;
+  auto sen = msg.initEvent().initSentinel();
   sen.setType(type);
-  auto words = capnp::messageToFlatArray(msg);
-  auto bytes = words.asBytes();
+  auto bytes = msg.toBytes();
 
   logger_log(s, bytes.begin(), bytes.size(), true);
 }
@@ -132,8 +127,22 @@ static LoggerHandle* logger_open(LoggerState *s, const char* root_path) {
   return h;
 fail:
   LOGE("logger failed to open files");
-  if (h->qlog_file) fclose(h->qlog_file);
-  if (h->log_file) fclose(h->log_file);
+  if (h->bz_file) {
+    BZ2_bzWriteClose(&bzerror, h->bz_file, 0, NULL, NULL);
+    h->bz_file = NULL;
+  }
+  if (h->bz_qlog) {
+    BZ2_bzWriteClose(&bzerror, h->bz_qlog, 0, NULL, NULL);
+    h->bz_qlog = NULL;
+  }
+  if (h->qlog_file) {
+    fclose(h->qlog_file);
+    h->qlog_file = NULL;
+  }
+  if (h->log_file) {
+    fclose(h->log_file);
+    h->log_file = NULL;
+  }
   return NULL;
 }
 
@@ -228,8 +237,12 @@ void lh_close(LoggerHandle* h) {
       BZ2_bzWriteClose(&bzerror, h->bz_qlog, 0, NULL, NULL);
       h->bz_qlog = NULL;
     }
-    if (h->qlog_file) fclose(h->qlog_file);
+    if (h->qlog_file) {
+      fclose(h->qlog_file);
+      h->qlog_file = NULL;
+    }
     fclose(h->log_file);
+    h->log_file = NULL;
     unlink(h->lock_path);
     pthread_mutex_unlock(&h->lock);
     pthread_mutex_destroy(&h->lock);

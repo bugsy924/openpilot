@@ -6,6 +6,7 @@ from distutils.core import Extension, setup  # pylint: disable=import-error,no-n
 from Cython.Build import cythonize
 from Cython.Distutils import build_ext
 
+TICI = os.path.isfile('/TICI')
 
 def get_ext_filename_without_platform_suffix(filename):
   name, ext = os.path.splitext(filename)
@@ -30,15 +31,16 @@ class BuildExtWithoutPlatformSuffix(build_ext):
 
 
 sourcefiles = ['messaging_pyx.pyx']
-extra_compile_args = ["-std=c++11"]
+extra_compile_args = ["-std=c++1z", "-Wno-nullability-completeness"]
 libraries = ['zmq']
 ARCH = subprocess.check_output(["uname", "-m"], encoding='utf8').rstrip()  # pylint: disable=unexpected-keyword-arg
 
-if ARCH == "aarch64":
+if ARCH == "aarch64" and not TICI:
+  # android
   extra_compile_args += ["-Wno-deprecated-register"]
   libraries += ['gnustl_shared']
 
-setup(name='CAN parser',
+setup(name='messaging',
       cmdclass={'build_ext': BuildExtWithoutPlatformSuffix},
       ext_modules=cythonize(
         Extension(
@@ -50,7 +52,7 @@ setup(name='CAN parser',
           extra_objects=[
             os.path.join(os.path.dirname(os.path.realpath(__file__)), '../', 'libmessaging.a'),
           ]
-        )
+        ),
+        nthreads=4,
       ),
-      nthreads=4,
 )

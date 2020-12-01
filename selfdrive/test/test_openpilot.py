@@ -2,76 +2,23 @@
 import os
 os.environ['FAKEUPLOAD'] = "1"
 
-from common.apk import update_apks, start_offroad, pm_apply_packages, android_packages
 from common.params import Params
-from common.testing import phone_only
-from selfdrive.manager import manager_init, manager_prepare
-from selfdrive.manager import start_managed_process, kill_managed_process, get_running
-from selfdrive.manager import start_daemon_process
-from functools import wraps
+from common.realtime import sec_since_boot
+from selfdrive.manager import manager_init, manager_prepare, start_daemon_process
+from selfdrive.test.helpers import phone_only, with_processes, set_params_enabled
 import json
 import requests
 import signal
 import subprocess
 import time
 
-DID_INIT = False
 
 # must run first
 @phone_only
 def test_manager_prepare():
-  global DID_INIT
+  set_params_enabled()
   manager_init()
   manager_prepare()
-  DID_INIT = True
-
-def with_processes(processes):
-  def wrapper(func):
-    @wraps(func)
-    def wrap():
-      if not DID_INIT:
-        test_manager_prepare()
-
-      # start and assert started
-      [start_managed_process(p) for p in processes]
-      assert all(get_running()[name].exitcode is None for name in processes)
-
-      # call the function
-      try:
-        func()
-        # assert processes are still started
-        assert all(get_running()[name].exitcode is None for name in processes)
-      finally:
-        # kill and assert all stopped
-        [kill_managed_process(p) for p in processes]
-        assert len(get_running()) == 0
-    return wrap
-  return wrapper
-
-def with_apks():
-  def wrapper(func):
-    @wraps(func)
-    def wrap():
-      if not DID_INIT:
-        test_manager_prepare()
-
-      update_apks()
-      pm_apply_packages('enable')
-      start_offroad()
-
-      func()
-
-      try:
-        for package in android_packages:
-          apk_is_running = (subprocess.call(["pidof", package]) == 0)
-          assert apk_is_running, package
-      finally:
-        pm_apply_packages('disable')
-        for package in android_packages:
-          apk_is_not_running = (subprocess.call(["pidof", package]) == 1)
-          assert apk_is_not_running, package
-    return wrap
-  return wrapper
 
 @phone_only
 @with_processes(['loggerd', 'logmessaged', 'tombstoned', 'proclogd', 'logcatd'])
@@ -108,6 +55,7 @@ def test_uploader():
 @phone_only
 def test_athena():
   print("ATHENA")
+  start = sec_since_boot()
   start_daemon_process("manage_athenad")
   params = Params()
   manage_athenad_pid = params.get("AthenadPid")
@@ -155,7 +103,7 @@ def test_athena():
         else:
           print(f'athena_post failed {e}. retrying...')
 
-  def expect_athena_registers():
+  def expect_athena_registers(test_t0):
     resp = athena_post({
       "method": "echo",
       "params": ["hello"],
@@ -163,6 +111,10 @@ def test_athena():
       "jsonrpc": "2.0"
     }, max_retries=12, wait=5)
     assert resp.get('result') == "hello", f'Athena failed to register ({resp})'
+
+    last_pingtime = params.get("LastAthenaPingTime", encoding='utf8')
+    assert last_pingtime, last_pingtime
+    assert ((int(last_pingtime)/1e9) - test_t0) < (sec_since_boot() - test_t0)
 
   try:
     athenad_pid = expect_athena_starts()
@@ -174,7 +126,7 @@ def test_athena():
       print('WARNING: COMMA_JWT env not set, will not test requests to athena.comma.ai')
       return
 
-    expect_athena_registers()
+    expect_athena_registers(start)
 
     print("ATHENA: getSimInfo")
     resp = athena_post({
