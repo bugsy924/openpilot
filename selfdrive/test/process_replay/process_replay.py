@@ -23,6 +23,7 @@ from selfdrive.manager import managed_processes
 # Numpy gives different results based on CPU features after version 19
 NUMPY_TOLERANCE = 1e-7
 
+
 ProcessConfig = namedtuple('ProcessConfig', ['proc_name', 'pub_sub', 'ignore', 'init_callback', 'should_recv_callback', 'tolerance'])
 
 def wait_for_event(evt):
@@ -224,7 +225,7 @@ CONFIGS = [
       "thermal": [], "health": [], "liveCalibration": [], "dMonitoringState": [], "plan": [], "pathPlan": [], "gpsLocation": [], "liveLocationKalman": [],
       "model": [], "frontFrame": [],
     },
-    ignore=["logMonoTime", "valid", "controlsState.startMonoTime", "controlsState.cumLagMs"],
+    ignore=["logMonoTime", "valid", "controlsState.startMonoTime", "controlsState.cumLagMs", "carParams.fingerprintSource"],
     init_callback=fingerprint,
     should_recv_callback=None,
     tolerance=NUMPY_TOLERANCE,
