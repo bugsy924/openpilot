@@ -6,7 +6,8 @@ Ecu = car.CarParams.Ecu
 
 class CarControllerParams:
   HCA_STEP = 2                   # HCA_01 message frequency 50Hz
-  LDW_STEP = 10                  # LDW_02 message frequency 10Hz
+  MQB_LDW_STEP = 10              # LDW_02 message frequency 10Hz on MQB
+  PQ_LDW_STEP = 5                # LDW message frequency 20Hz on PQ35/PQ46/NMS
   GRA_ACC_STEP = 3               # GRA_ACC_01 message frequency 33Hz
 
   GRA_VBP_STEP = 100             # Send ACC virtual button presses once a second
@@ -23,7 +24,7 @@ class CarControllerParams:
   STEER_DRIVER_FACTOR = 1        # from dbc
 
 class CANBUS:
-  pt = 0
+  pt = 1
   cam = 2
 
 TransmissionType = car.CarParams.TransmissionType
@@ -56,6 +57,7 @@ MQB_LDW_MESSAGES = {
 # Exception: SEAT Leon and SEAT Ateca share a chassis code
 
 class CAR:
+  GOLF_MK6 = "VOLKSWAGEN GOLF 6TH GEN"        # Chassis 1K/5K/AJ, includes Mk6 Golf and variants, or 5th gen with retrofits
   ATLAS_MK1 = "VOLKSWAGEN ATLAS 1ST GEN"      # Chassis CA, Mk1 VW Atlas and Atlas Cross Sport
   GOLF_MK7 = "VOLKSWAGEN GOLF 7TH GEN"        # Chassis 5G/AU/BA/BE, Mk7 VW Golf and variants
   JETTA_MK7 = "VOLKSWAGEN JETTA 7TH GEN"      # Chassis BU, Mk7 Jetta
@@ -69,6 +71,13 @@ class CAR:
   SKODA_SCALA_MK1 = "SKODA SCALA 1ST GEN"     # Chassis NW, Mk1 Skoda Scala and Skoda Kamiq
   SKODA_SUPERB_MK3 = "SKODA SUPERB 3RD GEN"   # Chassis 3V/NP, Mk3 Skoda Superb and variants
   SKODA_OCTAVIA_MK3 = "SKODA OCTAVIA 3RD GEN" # Chassis NE, Mk3 Skoda Octavia and variants
+
+PQ_CARS = [CAR.GOLF_MK6]
+
+FINGERPRINTS = {
+  CAR.GOLF_MK6: [{
+  }],
+}
 
 FW_VERSIONS = {
   CAR.ATLAS_MK1: {
@@ -476,6 +485,7 @@ FW_VERSIONS = {
 }
 
 DBC = {
+  CAR.GOLF_MK6: dbc_dict('vw_golf_mk4', None),
   CAR.ATLAS_MK1: dbc_dict('vw_mqb_2010', None),
   CAR.GOLF_MK7: dbc_dict('vw_mqb_2010', None),
   CAR.JETTA_MK7: dbc_dict('vw_mqb_2010', None),
