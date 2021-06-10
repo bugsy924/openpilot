@@ -86,7 +86,7 @@ class CarController():
             hcaEnabled = False
             self.hcaEnabledFrameCount = 0
           else:
-            hcaEnabled = True
+            hcaEnabled = True if apply_steer != 0 else False
             # FAULT AVOIDANCE: HCA torque must not be static for > 6 seconds.
             # This is to detect the sending camera being stuck or frozen. OP
             # can trip this on a curve if steering is saturated. Avoid this by
