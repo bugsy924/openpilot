@@ -108,7 +108,7 @@ class CarController():
       self.apply_steer_last = apply_steer
       idx = (frame / P.HCA_STEP) % 16
       can_sends.append(volkswagencan.create_pq_steering_control(self.packer_pt, CANBUS.pt, apply_steer,
-                                                                 idx, hcaEnabled))
+                                                                 idx, hcaEnabled, frame))
 
     #--------------------------------------------------------------------------
     #                                                                         #
