@@ -112,31 +112,6 @@ class CarController():
 
     #--------------------------------------------------------------------------
     #                                                                         #
-    # Prepare LDW_02 HUD messages with lane borders, confidence levels, and   #
-    # the LKAS status LED.                                                    #
-    #                                                                         #
-    #--------------------------------------------------------------------------
-
-    # The factory camera emits this message at 10Hz. When OP is active, Panda
-    # filters LDW_02 from the factory camera and OP emits LDW_02 at 10Hz.
-
-    if frame % self.ldw_step == 0:
-      hcaEnabled = True if enabled and not CS.out.standstill else False
-      if visual_alert == car.CarControl.HUDControl.VisualAlert.steerRequired:
-        hud_alert = MQB_LDW_MESSAGES["laneAssistTakeOverSilent"]
-      else:
-        hud_alert = MQB_LDW_MESSAGES["none"]
-
-
-      can_sends.append(volkswagencan.create_pq_hud_control(self.packer_pt, CANBUS.pt, enabled,
-                                                            CS.out.steeringPressed, hud_alert, left_lane_visible,
-                                                            right_lane_visible, CS.ldw_lane_warning_left,
-                                                            CS.ldw_lane_warning_right, CS.ldw_side_dlc_tlc,
-                                                            CS.ldw_dlc, CS.ldw_tlc, CS.out.standstill,
-                                                            left_lane_depart, right_lane_depart))
-
-    #--------------------------------------------------------------------------
-    #                                                                         #
     # Prepare GRA_ACC_01 ACC control messages with button press events.       #
     #                                                                         #
     #--------------------------------------------------------------------------
