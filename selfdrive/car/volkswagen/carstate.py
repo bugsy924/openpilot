@@ -10,11 +10,24 @@ class CarState(CarStateBase):
   def __init__(self, CP):
     super().__init__(CP)
     can_define = CANDefine(DBC[CP.carFingerprint]["pt"])
-    if CP.transmissionType == TransmissionType.automatic:
-      self.shifter_values = can_define.dv["Getriebe_11"]["GE_Fahrstufe"]
-    elif CP.transmissionType == TransmissionType.direct:
-      self.shifter_values = can_define.dv["EV_Gearshift"]["GearPosition"]
-    self.hca_status_values = can_define.dv["LH_EPS_03"]["EPS_HCA_Status"]
+    if CP.safetyModel == car.CarParams.SafetyModel.volkswagenPq:
+      # Configure for PQ35/PQ46/NMS network messaging
+      self.get_can_parser = self.get_pq_can_parser
+      self.get_cam_can_parser = self.get_pq_cam_can_parser
+      self.update = self.update_pq
+      if CP.transmissionType == TransmissionType.automatic:
+        self.shifter_values = can_define.dv["Getriebe_1"]['Waehlhebelposition__Getriebe_1_']
+    else:
+      # Configure for MQB network messaging (default)
+      self.get_can_parser = self.get_mqb_can_parser
+      self.get_cam_can_parser = self.get_mqb_cam_can_parser
+      self.update = self.update_mqb
+      self.hca_status_values = can_define.dv["LH_EPS_03"]["EPS_HCA_Status"]
+      if CP.transmissionType == TransmissionType.automatic:
+        self.shifter_values = can_define.dv["Getriebe_11"]['GE_Fahrstufe']
+      elif CP.transmissionType == TransmissionType.direct:
+        self.shifter_values = can_define.dv["EV_Gearshift"]['GearPosition']
+    
     self.buttonStates = BUTTON_STATES.copy()
 
   def update_mqb(self, pt_cp, cam_cp, trans_type):
