@@ -28,7 +28,6 @@ class CarController():
     elif CP.safetyModel == car.CarParams.SafetyModel.volkswagenPq:
       self.create_steering_control = volkswagencan.create_pq_steering_control
       self.create_acc_buttons_control = volkswagencan.create_pq_acc_buttons_control
-      self.create_hud_control = volkswagencan.create_pq_hud_control
       self.ldw_step = CarControllerParams.PQ_LDW_STEP
 
   def update(self, enabled, CS, frame, actuators, visual_alert, left_lane_visible, right_lane_visible, left_lane_depart, right_lane_depart):
