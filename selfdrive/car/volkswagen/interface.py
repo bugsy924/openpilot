@@ -64,8 +64,8 @@ class CarInterface(CarInterfaceBase):
     ret.lateralTuning.pid.kpBP = [0.]
     ret.lateralTuning.pid.kiBP = [0.]
     ret.lateralTuning.pid.kf = 0.000055
-    ret.lateralTuning.pid.kpV = [0.7]
-    ret.lateralTuning.pid.kiV = [0.2]
+    ret.lateralTuning.pid.kpV = [0.3]
+    ret.lateralTuning.pid.kiV = [0.1]
 
     # Per-chassis tuning values, override tuning defaults here if desired
     if candidate == CAR.GOLF_MK6:
